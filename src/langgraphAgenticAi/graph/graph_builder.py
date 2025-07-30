@@ -1,10 +1,14 @@
 from langgraph.graph import StateGraph, START, END
+from src.langgraphAgenticAi.nodes.ai_news_node import AINewsNode
+from src.langgraphAgenticAi.nodes.chatbot_with_tool_node import ChatbotWithToolNode
 from src.langgraphAgenticAi.state.state import State
 from src.langgraphAgenticAi.nodes.basic_chatbot_node import BasicChatbotNode
+from src.langgraphAgenticAi.tools.search_tool import create_tool_node, get_tools
+from langgraph.prebuilt import ToolNode, tools_condition
 
 class GraphBuilder:
-    def __init__(self,llm):
-        self.llm=llm
+    def __init__(self,model):
+        self.llm=model
         self.graph_builder=StateGraph(State)
     
     def basic_chatbot_build_graph(self):
@@ -19,6 +23,46 @@ class GraphBuilder:
         self.graph_builder.add_edge(START,"chatbot")
         self.graph_builder.add_edge("chatbot",END)
     
+    def chatbot_with_tools_build_graph(self):
+        """
+        Builds an advance chatbot graph with tool integration.This method creates a chatbot graph that includes both a chatbot node and a tool node. It defines tools, initializes the chatbot with tool capabilities, and sets up conditional and direct edges between nodes. The chatbot node is set as the entry point.
+        """
+
+        tools = get_tools()
+        tool_node = create_tool_node(tools)
+        
+        # Define the llm
+        llm = self.llm
+
+        ## Define the chatbot node
+        obj_chatbot_with_node = ChatbotWithToolNode(llm)
+        chatbot_node = obj_chatbot_with_node.create_chatbot(tools)
+
+        ## Add nodes
+        self.graph_builder.add_node("chatbot", chatbot_node)
+        self.graph_builder.add_node("tools", tool_node)
+
+        ## Add edges
+        self.graph_builder.add_edge(START,"chatbot")
+        self.graph_builder.add_conditional_edges("chatbot",tools_condition)
+        self.graph_builder.add_edge("tools","chatbot")
+        self.graph_builder.add_edge("chatbot",END)
+
+    def ai_news_builder_graph(self):
+
+        ai_news_node = AINewsNode(self.llm)
+        
+        # Add nodes
+        self.graph_builder.add_node("fetch_news",ai_news_node.fetch_news)
+        self.graph_builder.add_node("summarize_news",ai_news_node.summarize_news)
+        self.graph_builder.add_node("save_result",ai_news_node.save_result)
+
+        # add edges
+        self.graph_builder.set_entry_point("fetch_news")
+        self.graph_builder.add_edge("fetch_news","summarize_news")
+        self.graph_builder.add_edge("summarize_news","save_result")
+        self.graph_builder.add_edge("save_result",END)
+
     def setup_graph(self,usecase: str):
         """
         Sets up the graph for the selected use case.
@@ -26,5 +70,9 @@ class GraphBuilder:
 
         if usecase == "Basic Chatbot":
             self.basic_chatbot_build_graph()
-        
+        if usecase == "Chatbot With WebSearch":
+            self.chatbot_with_tools_build_graph()
+        if usecase == "AI News":
+            self.ai_news_builder_graph()
+
         return self.graph_builder.compile()
