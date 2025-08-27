@@ -9,3 +9,6 @@ faiss-cpu
 streamlit
 langchain-tavily
 python-dotenv
+tavily-python
+markdown2
+xhtml2pdf
